@@ -1,0 +1,314 @@
+
+
+
+
+#include <ESP8266.h>
+#include <aJSON.h>
+
+#ifdef ESP32
+#error "This code is not recommended to run on the ESP32 platform! Please check your Tools->Board setting."
+#endif
+
+/**
+**CoreUSB UART Port: [Serial1] [D0,D1]
+**Core+ UART Port: [Serial1] [D2,D3]
+**/
+#if defined(__AVR_ATmega32U4__) || defined(__AVR_ATmega1284P__) || defined (__AVR_ATmega644P__) || defined(__AVR_ATmega128RFA1__)
+
+#endif
+
+/**
+**Core UART Port: [SoftSerial] [D2,D3]
+**/
+#if defined (__AVR_ATmega168__) || defined (__AVR_ATmega328__) || defined (__AVR_ATmega328P__)
+#include <SoftwareSerial.h>
+SoftwareSerial mySerial(2, 3); /* RX:D2, TX:D3 */
+
+#define EspSerial mySerial
+#define UARTSPEED  9600
+#endif
+#include <TinyGPS++.h>
+#include <SoftwareSerial.h>
+/*
+   This sample sketch demonstrates the normal use of a TinyGPS++ (TinyGPSPlus) object.
+   It requires the use of SoftwareSerial, and assumes that you have a
+   4800-baud serial GPS device hooked up on pins 4(rx) and 3(tx).
+*/
+static const int RXPin = 2, TXPin = 3;
+static const uint32_t GPSBaud = 9600;
+
+// The TinyGPS++ object
+TinyGPSPlus gps;
+
+// The serial connection to the GPS device
+SoftwareSerial ss(4,5);
+
+#define SSID        "123456"
+#define PASSWORD    "87654321"
+#define HOST_NAME   "api.heclouds.com"
+#define DEVICEID   ""
+#define PROJECTID "303654"
+#define HOST_PORT   (80)
+String apiKey="";
+double data4;//要接收的数据
+ double data5;//要接收的数据
+double latitude;
+double longitude;
+char buf[10];
+int start=0;
+int end=0;
+
+#define INTERVAL_sensor 5000
+unsigned long sensorlastTime = millis();
+
+
+
+String mCottenData;
+String jsonToSend;
+String postString;
+
+
+ESP8266 wifi(&EspSerial);
+
+void setup(void) {
+  Serial.begin(9600);
+  longitude=longitude+0.01;
+  latitude=latitude+0.01;
+
+// wait for Leonardo enumeration, others continue immediately
+    Serial.print(F("setup begin\r\n"));
+    delay(100);
+
+    WifiInit(EspSerial, UARTSPEED);
+
+  Serial.print(F("FW Microduino Version:"));
+  Serial.println(wifi.getMVersion().c_str());
+
+  if (wifi.setOprToStation()) {
+    Serial.print(F("to station ok\r\n"));
+  } else {
+    Serial.print(F("to station err\r\n"));
+  }
+
+  if (wifi.joinAP(SSID, PASSWORD)) {
+    wifi.setWiFiconnected(true);
+    Serial.print(F("Join AP success\r\n"));
+    Serial.print(F("IP:"));
+    Serial.println(wifi.getMLocalIP().c_str());
+  } else {
+    wifi.setWiFiconnected(false);
+    Serial.print(F("Join AP failure\r\n"));
+    Serial.print(F("Make sure your SSID, PASS correctly!\r\n"));
+    while (true) {
+      mCottenData = wifi.getMqttJson();
+      if (mCottenData != "") {
+        mCottenData.trim();
+        Serial.println(mCottenData);
+      }
+    }
+  }
+
+    if (wifi.disableMUX()) {
+        Serial.print(F("single ok\r\n"));
+    } else {
+        Serial.print(F("single err\r\n"));
+    }
+    Serial.print(F("setup end\r\n"));
+
+
+  mCottenData = wifi.getMqttJson();
+
+  if (mCottenData != "") {
+    mCottenData.trim();
+
+    Serial.println(mCottenData);
+
+    if (mCottenData.equals("WIFI DISCONNECT")) {
+      wifi.setWiFiconnected(false);
+
+    } else if (mCottenData.equals("WIFI Connected")) {
+      wifi.setWiFiconnected(true);
+    
+    }
+
+    if (!wifi.isWiFiconnected()) {
+      return;
+    }
+
+  }
+
+
+  
+ 
+ ss.begin(GPSBaud);
+}
+
+void loop(void) { /*receive()；*/
+   /*while (ss.available() > 0){
+   if (gps.encode(ss.read()))
+      displayInfo();}
+
+  if (millis() > 5000 && gps.charsProcessed() < 10)
+  {
+    Serial.println(F("No GPS detected: check wiring."));
+    while(true);
+  }*/
+
+
+  if (wifi.isWiFiconnected()) {
+    if (sensorlastTime > millis())
+      sensorlastTime = millis();
+    if (millis() - sensorlastTime > INTERVAL_sensor) {
+
+    
+      updateWheatherData();
+
+      sensorlastTime = millis();
+    }
+  }
+
+}
+
+
+void updateWheatherData() {
+
+  //uint8_t buffer[1024] = {0};
+  uint8_t buffer[512] = {0};
+  char infoData[60]={0};
+
+    if (wifi.createTCP(HOST_NAME, HOST_PORT)) {
+        Serial.print(F("create tcp ok\r\n"));
+    } else {
+        Serial.print(F("create tcp err\r\n"));
+    }
+
+
+
+   
+
+    jsonToSend="{\"Latitude\":";
+    dtostrf(data4,2,6,buf);
+    jsonToSend+="\""+String(buf)+"\"";
+    jsonToSend+=",\"Longitutde\":";
+    dtostrf(data5,2,6,buf);
+    jsonToSend+="\""+String(buf)+"\"";
+    jsonToSend+="}";
+    
+    postString="POST /devices/";
+    postString+=DEVICEID;
+    postString+="/datapoints?type=3 HTTP/1.1";
+    postString+="\r\n";
+    postString+="api-key:";
+    postString+=apiKey;
+    postString+="\r\n";
+    postString+="Host:api.heclouds.com\r\n";
+    postString+="Connection:close\r\n";
+    postString+="Content-Length:";
+    postString+=jsonToSend.length();
+    postString+="\r\n";
+    postString+="\r\n";
+    postString+=jsonToSend;
+    postString+="\r\n";
+    postString+="\r\n";
+    postString+="\r\n";
+
+    const char *postArray = postString.c_str();
+
+    Serial.println(postArray);
+
+    wifi.send((const uint8_t*)postArray, strlen(postArray));
+
+    uint32_t len = wifi.recv(buffer, sizeof(buffer), 10000);
+
+    if (len > 0) {
+        //Serial.print(F("Received:["));
+        for(uint32_t i = 0; i < len; i++) {
+            //Serial.print((char)buffer[i]));
+            if((char)buffer[i]=='{') {
+              start=i;
+            } if((char)buffer[i]=='}') {
+              end=i;
+            }
+        }
+        //Serial.print(F("]\r\n"));
+        int index=0;
+        for(uint32_t i = start; i <= end; i++) {
+            infoData[index]=(char)buffer[i];
+            index++;
+        }
+        infoData[index]='\n';
+        Serial.print(F("Received:["));
+        Serial.println(infoData);
+        Serial.print(F("]\r\n"));
+
+        if(strstr(infoData,"\"Status\":\"true\"")!=NULL) {
+          Serial.println(F("ON"));
+        } else {
+          Serial.println(F("OFF"));
+        }
+
+    }
+
+
+    if (wifi.releaseTCP()) {
+        Serial.print(F("release tcp ok\r\n"));
+    } else {
+        Serial.print(F("release tcp err\r\n"));
+    }
+
+    postArray=NULL;
+
+}void receive(){
+
+  String comdata = "";//存放接收到的原始字符串
+  String buf1="";//存放解析出的第一个字符串
+  String buf2="";//存放解析出的第二个字符串
+  
+
+    while (Serial.available() > 0)  
+    {
+        comdata += char(Serial.read());
+        delay(2);//一个一个接收数据，每次停顿2毫秒
+    }
+    if (comdata.length() > 0)//如果有数据收到
+    {
+      int ja,jb,jd;//存放收到的字符串中标志字母的下标
+
+for(int i = 0; i < comdata.length(); i++){
+
+  if(comdata[i]=='a'){ja=i;}
+  if(comdata[i]=='b'){jb=i;}
+  if(comdata[i]=='#'){jd=i;}
+
+  }//找到约定标志字母的下标
+
+ for(int k=ja+1;k<jb;k++){
+  buf1+=char(comdata[k]);
+  }
+  for(int k=jb+1;k<jd;k++){
+  buf2+=char(comdata[k]);
+  }
+//根据约定字母所在的位置依次解析出各个数据
+      data4=buf1.toDouble();//将解析得到的字符串转换为float类型
+         data5=buf2.toDouble();
+    }
+
+  }
+void displayInfo()
+{
+  Serial.print(F("Location: ")); 
+  if (gps.location.isValid())
+  {
+    Serial.print(gps.location.lat(), 6);
+    Serial.print(F(","));
+    Serial.print(gps.location.lng(), 6);
+  }
+  else
+  {
+    Serial.print(F("INVALID"));
+  }
+
+
+
+  Serial.println();
+}
