@@ -1,0 +1,124 @@
+//index.js
+//获取应用实例
+var app = getApp()
+
+
+
+Page({
+
+  data: {
+    //默认未获取地址
+    hasLocation: false
+  },
+  
+ 
+  //获取经纬度
+  getLocation: function (e) {
+    console.log(e)
+    var that = this
+    const requestTask = wx.request({
+      url: 'https://api.heclouds.com/devices/576488894/datapoints?datastream_id=longitude,latitude&limit=1',//调用Onenet平台的api
+      header: {
+        'content-type': 'application/json',
+        'api-key': 'IOy609bv9yYlsNS=NgQmlgxPj3I='
+      },
+      success: function (res) {
+        var app = getApp()
+        app.globalData.longitude = res.data.data.datastreams[1].datapoints[0].value
+        app.globalData.latitude = res.data.data.datastreams[0].datapoints[0].value
+        console.log(116.288860)//(app.globalData.longitude)
+        console.log(40.157410 )//(app.globalData.latitude)
+        that.setData({
+          hasLocation: true,
+          location: {
+            longitude: app.globalData.longitude,
+            latitude: app.globalData.latitude 
+          }
+        })
+      }
+    })
+  },
+  //根据经纬度在地图上显示
+  openLocation: function (e) {
+    
+
+    var value = e.detail.value
+    console.log(e)
+    console.log(value.longitude)
+    wx.openLocation({
+      longitude: Number(app.globalData.longitude),
+      latitude: Number(app.globalData.latitude)
+    })
+  }
+
+})
+<!--index.wxml-->
+<view class="wrapper">
+  <view class="page-body">
+    <view class="page-body-wrapper">
+
+      <form bindsubmit="openLocation">
+       
+
+        <view class="page-body-buttons">
+           <view class='btns'>
+         
+          <button class="page-body-button" type="primary" formType="submit">查看位置</button>
+          </view>
+        </view>
+
+      </form>
+    </view>
+  </view>
+</view>
+/**index.wxss**/
+.wrapper{
+  height: 100%;
+  width: 750rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-around;
+  padding-top:15%;
+}
+.page-body-form-value{
+  font-size: 14px;
+  color:rgb(0, 160, 209);
+  font-weight: bold;
+  padding-left: 20px;
+  border: 1px solid rgba(0, 0, 10, 0.822);
+  border-radius: 4px;
+  height: 30px;
+  line-height: 30px;
+  margin-bottom: 10%;
+}
+/*字*/
+.page-body-form-key{
+  font-size:20px;
+  color:rgb(1, 7, 8);
+  padding: 10px;
+  margin-top:15px;
+  font-family: "Microsoft Yahei";
+  font-weight: bold;
+  height: 30px;
+  line-height: 30px;
+}
+
+.page-body-button{
+ display: flex;
+  flex-direction: column;
+
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10%
+}
+
+.btns {
+  padding-top:30%;
+ 
+  width: 750rpx;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  margin-top: 10%;
+}
